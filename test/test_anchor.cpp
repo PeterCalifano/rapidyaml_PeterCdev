@@ -157,12 +157,8 @@ TEST(anchors, programatic_val_ref)
     t["kanchor"].set_key_anchor("kanchor");
     t["vanchor"] = "3";
     t["vanchor"].set_val_anchor("vanchor");
-
-    t["kref"].create();
-    t["vref"].create();
     t["kref"].set_val_ref("kanchor");
     t["vref"].set_val_ref("vanchor");
-
     EXPECT_EQ(emitrs_yaml<std::string>(t), R"(&kanchor kanchor: 2
 vanchor: &vanchor 3
 kref: *kanchor
@@ -184,16 +180,10 @@ notcopy: {}
 notref: {}
 )");
     _c4dbg_tree(t);
-    t["copy"]["<<"] = "*orig";
     t["copy"]["<<"].set_val_ref("orig");
-
-    t["notcopy"]["test"] = "*orig";
     t["notcopy"]["test"].set_val_ref("orig");
-    t["notcopy"]["<<"] = "*orig";
     t["notcopy"]["<<"].set_val_ref("orig");
-
     t["notref"]["<<"] = "*orig";
-
     _c4dbg_tree(t);
     EXPECT_EQ(emitrs_yaml<std::string>(t), R"(orig: &orig {foo: bar,baz: bat}
 copy: {<<: *orig}
@@ -215,16 +205,11 @@ orig2: &orig2 {baz: bat}
 orig3: &orig3 {and: more}
 copy: {}
 )");
-    t["copy"]["<<"] |= SEQ;
-    NodeRef ref1 = t["copy"]["<<"].append_child();
-    NodeRef ref2 = t["copy"]["<<"].append_child();
-    NodeRef ref3 = t["copy"]["<<"].append_child();
-    ref1 = "*orig1";
-    ref2 = "*orig2";
-    ref3 = "*orig3";
-    ref1.set_val_ref("orig1");
-    ref2.set_val_ref("orig2");
-    ref3.set_val_ref("orig3");
+    NodeRef seq = t["copy"]["<<"];
+    seq |= SEQ;
+    seq.append_child().set_val_ref("orig1");
+    seq.append_child().set_val_ref("orig2");
+    seq.append_child().set_val_ref("orig3");
     EXPECT_EQ(emitrs_yaml<std::string>(t), R"(orig1: &orig1 {foo: bar}
 orig2: &orig2 {baz: bat}
 orig3: &orig3 {and: more}
@@ -339,6 +324,39 @@ TEST(anchors, set_val_ref_replaces_existing_key)
     root["foo"].set_val_ref("*notfoo");
     EXPECT_EQ(root["foo"].val(), "*notfoo");
     EXPECT_EQ(emitrs_yaml<std::string>(t), "{foo: *notfoo}");
+}
+
+
+TEST(anchors, github529)
+{
+    csubstr unresolved = R"(
+dimensions: 3
+type: EXPRESSION
+variables:
+  "<<":
+    - biomes/abstract/carving/carving_land.yml:carving.sampler.variables
+  carvingMaxHeight: 40
+expression: $biomes/abstract/carving/carving_land.yml:carving.sampler.expression
+samplers: $biomes/abstract/carving/carving_land.yml:carving.sampler.samplers
+<<: not a reference
+tpl: &anchor
+  it: works
+<<: *anchor
+ )";
+    Tree tree = parse_in_arena(unresolved);
+    //print_tree(tree);
+    EXPECT_FALSE(tree["variables"]["<<"].is_val_ref());
+    EXPECT_TRUE(tree["variables"]["<<"].is_key_quoted());
+    EXPECT_EQ(tree[5].key(), "<<");
+    EXPECT_FALSE(tree[5].is_val_ref());
+    EXPECT_FALSE(tree[5].is_key_quoted());
+    EXPECT_EQ(tree[7].key(), "<<");
+    EXPECT_TRUE(tree[7].is_val_ref());
+    EXPECT_FALSE(tree[7].is_key_quoted());
+    tree.resolve();
+    EXPECT_EQ(tree["variables"]["<<"][0].val(), "biomes/abstract/carving/carving_land.yml:carving.sampler.variables");
+    EXPECT_EQ(tree["<<"].val(), "not a reference");
+    EXPECT_EQ(tree["it"].val(), "works");
 }
 
 
@@ -551,6 +569,281 @@ top62:
     EXPECT_EQ(t["top62"].val_anchor(), "anchor62");
     EXPECT_EQ(t["top62"]["key62"].val(), "scalar62");
     ASSERT_EQ(t["top62"]["key62"].has_key_anchor(), false);
+}
+
+TEST(simple_anchor, merge_seqs)
+{
+    const Tree src = parse_in_arena(R"([0, 1])");
+    {
+        Tree dst = parse_in_arena(R"([2, 3])");
+        dst.duplicate_children_no_rep(&src, 0, 0, NONE);
+        EXPECT_EQ(emitrs_yaml<std::string>(dst), "[0,1,2,3]");
+    }
+    {
+        Tree dst = parse_in_arena(R"([2, 3])");
+        dst.duplicate_children_no_rep(&src, 0, 0, 1);
+        EXPECT_EQ(emitrs_yaml<std::string>(dst), "[2,0,1,3]");
+    }
+    {
+        Tree dst = parse_in_arena(R"([2, 3])");
+        dst.duplicate_children_no_rep(&src, 0, 0, 2);
+        EXPECT_EQ(emitrs_yaml<std::string>(dst), "[2,3,0,1]");
+    }
+}
+
+TEST(simple_anchor, issue_400)
+{
+    csubstr yaml = R"(
+a: &a
+  x: 1
+b: &b
+  ref: *a
+c:
+  ref: *b
+)";
+    {
+        Tree t = parse_in_arena(yaml);
+        t.resolve();
+        EXPECT_EQ(emitrs_yaml<std::string>(t), R"(a:
+  x: 1
+b:
+  ref:
+    x: 1
+c:
+  ref:
+    ref:
+      x: 1
+)");
+    }
+}
+
+TEST(simple_anchor, billion_laughs)
+{
+    // https://en.wikipedia.org/wiki/Billion_laughs_attack
+    csubstr yaml = R"(a: &a ["lol","lol"]
+b: &b [*a,*a]
+c: &c [*b,*b]
+)";
+    {
+        Tree t = parse_in_arena(yaml);
+        EXPECT_EQ(emitrs_yaml<std::string>(t), yaml);
+    }
+    {
+        Tree t = parse_in_arena(yaml);
+        t.resolve(true);
+        EXPECT_EQ(emitrs_yaml<std::string>(t), R"(a: ["lol","lol"]
+b: [["lol","lol"],["lol","lol"]]
+c: [[["lol","lol"],["lol","lol"]],[["lol","lol"],["lol","lol"]]]
+)");
+    }
+    {
+        Tree t = parse_in_arena(yaml);
+        t.resolve(false);
+        EXPECT_EQ(emitrs_yaml<std::string>(t), R"(a: &a ["lol","lol"]
+b: &b [&a ["lol","lol"],&a ["lol","lol"]]
+c: &c [&b [&a ["lol","lol"],&a ["lol","lol"]],&b [&a ["lol","lol"],&a ["lol","lol"]]]
+)");
+    }
+}
+
+TEST(simple_anchor, resolve_nested)
+{
+    csubstr yaml = R"(a: &a
+  b:
+    <<: *a
+)";
+    {
+        Tree t = parse_in_arena(yaml);
+        EXPECT_EQ(emitrs_yaml<std::string>(t), yaml);
+    }
+    {
+        Tree t = parse_in_arena(yaml);
+        ExpectError::check_error(&t, [&]{
+            t.resolve(true);
+        });
+    }
+    {
+        Tree t = parse_in_arena(yaml);
+        ExpectError::check_error(&t, [&]{
+            t.resolve(false);
+        });
+    }
+}
+
+TEST(simple_anchor, resolve_nested_2)
+{
+    csubstr yaml = R"(a0: &a0
+  b0: &b0
+    c0: &c0 v0
+a1: &a1
+  ref: *a0
+a2: &a2
+  ref: *a1
+a3: &a3
+  ref: *a2
+a4: &a4
+  ref: *a3
+a5: &a5
+  ref: *a4
+)";
+    {
+        Tree t = parse_in_arena(yaml);
+        EXPECT_EQ(emitrs_yaml<std::string>(t), yaml);
+    }
+    {
+        Tree t = parse_in_arena(yaml);
+        t.resolve(true);
+        EXPECT_EQ(emitrs_yaml<std::string>(t), R"(a0:
+  b0:
+    c0: v0
+a1:
+  ref:
+    b0:
+      c0: v0
+a2:
+  ref:
+    ref:
+      b0:
+        c0: v0
+a3:
+  ref:
+    ref:
+      ref:
+        b0:
+          c0: v0
+a4:
+  ref:
+    ref:
+      ref:
+        ref:
+          b0:
+            c0: v0
+a5:
+  ref:
+    ref:
+      ref:
+        ref:
+          ref:
+            b0:
+              c0: v0
+)");
+    }
+    {
+        Tree t = parse_in_arena(yaml);
+        t.resolve(false);
+        EXPECT_EQ(emitrs_yaml<std::string>(t), R"(a0: &a0
+  b0: &b0
+    c0: &c0 v0
+a1: &a1
+  ref: &a0
+    b0: &b0
+      c0: &c0 v0
+a2: &a2
+  ref: &a1
+    ref: &a0
+      b0: &b0
+        c0: &c0 v0
+a3: &a3
+  ref: &a2
+    ref: &a1
+      ref: &a0
+        b0: &b0
+          c0: &c0 v0
+a4: &a4
+  ref: &a3
+    ref: &a2
+      ref: &a1
+        ref: &a0
+          b0: &b0
+            c0: &c0 v0
+a5: &a5
+  ref: &a4
+    ref: &a3
+      ref: &a2
+        ref: &a1
+          ref: &a0
+            b0: &b0
+              c0: &c0 v0
+)");
+    }
+}
+
+TEST(simple_anchor, issue_484_0)
+{
+    csubstr yaml = R"(
+base_1: &base_1
+  a: 10
+  b: 10
+base_2: &base_2
+  b: 20
+k1:
+  !!merge <<: *base_1
+  !!merge <<: *base_2
+k2:
+  !!merge <<: *base_2
+  !!merge <<: *base_1
+)";
+    Tree t = parse_in_arena(yaml);
+    EXPECT_EQ(t["k1"][0].val(), "*base_1");
+    EXPECT_EQ(t["k1"][1].val(), "*base_2");
+    EXPECT_EQ(t["k2"][0].val(), "*base_2");
+    EXPECT_EQ(t["k2"][1].val(), "*base_1");
+    t.resolve();
+    EXPECT_EQ(t["k1"]["a"].val(), "10");
+    EXPECT_EQ(t["k1"]["b"].val(), "20");
+    EXPECT_EQ(t["k2"]["a"].val(), "10");
+    EXPECT_EQ(t["k2"]["b"].val(), "10");
+    EXPECT_EQ(emitrs_yaml<std::string>(t), R"(base_1:
+  a: 10
+  b: 10
+base_2:
+  b: 20
+k1:
+  a: 10
+  b: 20
+k2:
+  a: 10
+  b: 10
+)");
+}
+
+TEST(simple_anchor, issue_484_1)
+{
+    csubstr yaml = R"(
+base_1: &base_1
+  a: 10
+  b: 10
+base_2: &base_2
+  a: 30
+k1:
+  <<: *base_1
+  <<: *base_2
+k2:
+  <<: *base_2
+  <<: *base_1
+)";
+    Tree t = parse_in_arena(yaml);
+    EXPECT_EQ(t["k1"][0].val(), "*base_1");
+    EXPECT_EQ(t["k1"][1].val(), "*base_2");
+    EXPECT_EQ(t["k2"][0].val(), "*base_2");
+    EXPECT_EQ(t["k2"][1].val(), "*base_1");
+    t.resolve();
+    EXPECT_EQ(t["k1"]["a"].val(), "30");
+    EXPECT_EQ(t["k1"]["b"].val(), "10");
+    EXPECT_EQ(t["k2"]["a"].val(), "10");
+    EXPECT_EQ(t["k2"]["b"].val(), "10");
+    EXPECT_EQ(emitrs_yaml<std::string>(t), R"(base_1:
+  a: 10
+  b: 10
+base_2:
+  a: 30
+k1:
+  b: 10
+  a: 30
+k2:
+  a: 10
+  b: 10
+)");
 }
 
 
@@ -1311,8 +1604,8 @@ N(SB, L{
       N(KP|VP, "k6", "w6"),
       N(KP|VP, "k8", "w8"),
   }),
-  N(MB, L{N(KP|VP, "k1", AR(KEYANCH, "a1"), "v1"), N(KP|VP, "k2", AR(KEYANCH, "a2"), "v2"), N(KP|VP, "k3", AR(KEYANCH, "a3"), "v3")}),
-  N(MB, L{N(KP|VP, "k8", AR(KEYANCH, "a8"), "v8")}),
+  N(MB, L{N(KP|VP, "k1", "v1"), N(KP|VP, "k2", "v2"), N(KP|VP, "k3", "v3")}),
+  N(MB, L{N(KP|VP, "k8", "v8")}),
   N(MB, L{N(KP|VP, "k10", "v10")}),
 })
 );
@@ -1324,7 +1617,7 @@ a: 1
 &anchor c: 3
 )",
 N(MB, L{
-    N(KP|VP, "a", "1"), N(KP|VP, "b", {}), N(KP|VP, "c", AR(KEYANCH, "anchor"), "3")
+    N(KP|VP, "a", "1"), N(KP|VN, "b", {}), N(KP|VP, "c", AR(KEYANCH, "anchor"), "3")
   })
 );
 
@@ -1349,6 +1642,28 @@ R"(
 N(MB, L{
       N(KD|VP, TS("!!str", "foo"), TS("!!str", "bar")),
       N(KP|VD, "baz", "foo"),
+  })
+);
+
+ADD_CASE_TO_GROUP("github 484, resolved", RESOLVE_REFS,
+R"(
+base_1: &base_1
+  a: 10
+  b: 10
+base_2: &base_2
+  b: 20
+k1:
+  !!merge <<: *base_1
+  !!merge <<: *base_2
+k2:
+  !!merge <<: *base_2
+  !!merge <<: *base_1
+)",
+N(MB, L{
+      N(KP|MB, "base_1", L{N(KP|VP, "a", "10"), N(KP|VP, "b", "10")}),
+      N(KP|MB, "base_2", L{/*                 */N(KP|VP, "b", "20")}),
+      N(KP|MB, "k1", L{N(KP|VP, "a", "10"), N(KP|VP, "b", "20")}),
+      N(KP|MB, "k2", L{N(KP|VP, "a", "10"), N(KP|VP, "b", "10")}),
   })
 );
 

@@ -6,7 +6,7 @@ project(ryml
     LANGUAGES CXX)
 include(./compat.cmake)
 
-c4_project(VERSION 0.7.2 STANDALONE
+c4_project(VERSION 0.10.0 STANDALONE
     AUTHOR "Joao Paulo Magalhaes <dev@jpmag.me>")
 
 
@@ -20,7 +20,7 @@ endif()
 option(RYML_USE_ASSERT "Enable assertions regardless of build type. Default is only when NDEBUG is not defined (which is in release builds). This causes a slowdown of the code." OFF)
 option(RYML_BUILD_TOOLS "Build tools" OFF)
 option(RYML_BUILD_API "Enable API generation (python, etc)" OFF)
-option(RYML_DBG "Enable (very verbose) ryml debug prints." OFF)
+option(RYML_DBG "Enable (very verbose) debug prints." OFF)
 
 option(RYML_INSTALL "Enable install target" ON)
 
@@ -37,7 +37,7 @@ c4_add_library(ryml
         ryml.hpp
         ryml_std.hpp
         c4/yml/detail/checks.hpp
-        c4/yml/detail/parser_dbg.hpp
+        c4/yml/detail/dbgprint.hpp
         c4/yml/detail/print.hpp
         c4/yml/detail/stack.hpp
         c4/yml/common.hpp
@@ -123,7 +123,6 @@ endif()
 #-------------------------------------------------------
 # developer targets
 
-
 # extern libraries, used only for testing/benchmarking
 if(RYML_BUILD_TESTS OR RYML_BUILD_BENCHMARKS OR RYML_BUILD_TOOLS)
     include(ext/testbm.cmake)
@@ -138,3 +137,33 @@ c4_add_dev_targets()
 add_custom_target(ryml-uninstall
     "${CMAKE_COMMAND}" -P "${PROJECT_SOURCE_DIR}/cmake/uninstall.cmake"
 )
+
+
+#-------------------------------------------------------
+# clang-tidy
+
+function(ryml_setup_clang_tidy rootdir)
+    get_target_property(srcs ryml SOURCES)
+    string(REPLACE "${rootdir}/" "./" srcs "${srcs}")
+    set(exclude ./ext/.* parse_engine.def.hpp .natvis)
+    foreach(e ${exclude})
+        list(FILTER srcs EXCLUDE REGEX ${e})
+    endforeach()
+    set(cmd ${srcs} -p ${CMAKE_BINARY_DIR}
+            "--config-file=${rootdir}/.clang-tidy"
+            "--header-filter=${rootdir}/src/.*")
+    add_custom_target(ryml-clang-tidy
+        COMMAND ${CMAKE_COMMAND} -E cat ${CMAKE_BINARY_DIR}/compile_commands.json
+        COMMAND ${CLANG_TIDY} --version
+        COMMAND ${CLANG_TIDY} ${cmd} --dump-config
+        COMMAND ${CLANG_TIDY} ${cmd} --list-checks
+        COMMAND ${CLANG_TIDY} ${cmd}
+        WORKING_DIRECTORY ${rootdir}
+        VERBATIM
+    )
+endfunction()
+
+find_program(CLANG_TIDY clang-tidy)
+if(CLANG_TIDY)
+    ryml_setup_clang_tidy(${CMAKE_CURRENT_LIST_DIR})
+endif()

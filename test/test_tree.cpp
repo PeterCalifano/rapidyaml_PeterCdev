@@ -1922,6 +1922,131 @@ TEST(NodeType, has_key)
     EXPECT_TRUE(NodeType(KEYSEQ).has_key());
 }
 
+TEST(Tree, key_val_is_null)
+{
+    Tree t = parse_in_arena(R"(
+map: {foo: bar, : knil, vnil: }
+seq: [foo, bar]
+: knil
+vnil:
+squoted: ''
+dquoted: ""
+literal: |
+folded: >
+)");
+    const NodeRef mroot = t.rootref();
+    const NodeRef mmap = t["map"];
+    const NodeRef mfoo = t["map"]["foo"];
+    const NodeRef mfooknil = t["map"][1];
+    const NodeRef mfoovnil = t["map"]["vnil"];
+    const NodeRef mseq = t["seq"];
+    const NodeRef mknil = t[2];
+    const NodeRef mvnil = t["vnil"];
+    const NodeRef msquo = t["squoted"];
+    const NodeRef mdquo = t["dquoted"];
+    const NodeRef mliteral = t["literal"];
+    const NodeRef mfolded = t["folded"];
+    const ConstNodeRef root = mroot;
+    const ConstNodeRef map = mmap;
+    const ConstNodeRef foo = mfoo;
+    const ConstNodeRef fooknil = mfooknil;
+    const ConstNodeRef foovnil = mfoovnil;
+    const ConstNodeRef seq = mseq;
+    const ConstNodeRef knil = mknil;
+    const ConstNodeRef vnil = mvnil;
+    const ConstNodeRef squo = msquo;
+    const ConstNodeRef dquo = mdquo;
+    const ConstNodeRef literal = mliteral;
+    const ConstNodeRef folded = mfolded;
+    const size_t root_id = root.id();
+    const size_t map_id = map.id();
+    const size_t foo_id = foo.id();
+    const size_t fooknil_id = fooknil.id();
+    const size_t foovnil_id = foovnil.id();
+    const size_t seq_id = seq.id();
+    const size_t knil_id = knil.id();
+    const size_t vnil_id = vnil.id();
+    const size_t squo_id = squo.id();
+    const size_t dquo_id = dquo.id();
+    const size_t literal_id = literal.id();
+    const size_t folded_id = folded.id();
+    //
+    verify_assertion(t, [&](Tree const&){ return t.key_is_null(root_id); });
+    verify_assertion(t, [&](Tree const&){ return t.val_is_null(root_id); });
+    EXPECT_FALSE(t.key_is_null(map_id));
+    verify_assertion(t, [&](Tree const&){ return t.val_is_null(map_id); });
+    EXPECT_FALSE(t.key_is_null(foo_id));
+    EXPECT_FALSE(t.val_is_null(foo_id));
+    EXPECT_TRUE (t.key_is_null(fooknil_id));
+    EXPECT_FALSE(t.val_is_null(fooknil_id));
+    EXPECT_FALSE(t.key_is_null(foovnil_id));
+    EXPECT_TRUE (t.val_is_null(foovnil_id));
+    EXPECT_FALSE(t.key_is_null(seq_id));
+    verify_assertion(t, [&](Tree const&){ return t.val_is_null(seq_id); });
+    EXPECT_TRUE (t.key_is_null(knil_id));
+    EXPECT_FALSE(t.val_is_null(knil_id));
+    EXPECT_FALSE(t.key_is_null(vnil_id));
+    EXPECT_TRUE (t.val_is_null(vnil_id));
+    EXPECT_FALSE(t.key_is_null(squo_id));
+    EXPECT_FALSE(t.val_is_null(squo_id));
+    EXPECT_FALSE(t.key_is_null(dquo_id));
+    EXPECT_FALSE(t.val_is_null(dquo_id));
+    EXPECT_FALSE(t.key_is_null(literal_id));
+    EXPECT_FALSE(t.val_is_null(literal_id));
+    EXPECT_FALSE(t.key_is_null(folded_id));
+    EXPECT_FALSE(t.val_is_null(folded_id));
+    //
+    verify_assertion(t, [&](Tree const&){ return root.key_is_null(); });
+    verify_assertion(t, [&](Tree const&){ return root.val_is_null(); });
+    EXPECT_FALSE(map.key_is_null());
+    verify_assertion(t, [&](Tree const&){ return map.val_is_null(); });
+    EXPECT_FALSE(foo.key_is_null());
+    EXPECT_FALSE(foo.val_is_null());
+    EXPECT_TRUE (fooknil.key_is_null());
+    EXPECT_FALSE(fooknil.val_is_null());
+    EXPECT_FALSE(foovnil.key_is_null());
+    EXPECT_TRUE (foovnil.val_is_null());
+    EXPECT_FALSE(seq.key_is_null());
+    verify_assertion(t, [&](Tree const&){ seq.val_is_null(); });
+    EXPECT_TRUE (knil.key_is_null());
+    EXPECT_FALSE(knil.val_is_null());
+    EXPECT_FALSE(vnil.key_is_null());
+    EXPECT_TRUE (vnil.val_is_null());
+    EXPECT_FALSE(squo.key_is_null());
+    EXPECT_FALSE(squo.val_is_null());
+    EXPECT_FALSE(dquo.key_is_null());
+    EXPECT_FALSE(dquo.val_is_null());
+    EXPECT_FALSE(literal.key_is_null());
+    EXPECT_FALSE(literal.val_is_null());
+    EXPECT_FALSE(folded.key_is_null());
+    EXPECT_FALSE(folded.val_is_null());
+    //
+    verify_assertion(t, [&](Tree const&){ return mroot.key_is_null(); });
+    verify_assertion(t, [&](Tree const&){ return mroot.val_is_null(); });
+    EXPECT_FALSE(mmap.key_is_null());
+    verify_assertion(t, [&](Tree const&){ return mmap.val_is_null(); });
+    EXPECT_FALSE(mfoo.key_is_null());
+    EXPECT_FALSE(mfoo.val_is_null());
+    EXPECT_TRUE (mfooknil.key_is_null());
+    EXPECT_FALSE(mfooknil.val_is_null());
+    EXPECT_FALSE(mfoovnil.key_is_null());
+    EXPECT_TRUE (mfoovnil.val_is_null());
+    EXPECT_FALSE(mseq.key_is_null());
+    verify_assertion(t, [&](Tree const&){ mseq.val_is_null(); });
+    EXPECT_TRUE (mknil.key_is_null());
+    EXPECT_FALSE(mknil.val_is_null());
+    EXPECT_FALSE(mvnil.key_is_null());
+    EXPECT_TRUE (mvnil.val_is_null());
+    EXPECT_FALSE(msquo.key_is_null());
+    EXPECT_FALSE(msquo.val_is_null());
+    EXPECT_FALSE(mdquo.key_is_null());
+    EXPECT_FALSE(mdquo.val_is_null());
+    EXPECT_FALSE(mliteral.key_is_null());
+    EXPECT_FALSE(mliteral.val_is_null());
+    EXPECT_FALSE(mfolded.key_is_null());
+    EXPECT_FALSE(mfolded.val_is_null());
+}
+
 TEST(Tree, has_key)
 {
     Tree t = parse_in_arena(R"(---
@@ -3470,6 +3595,223 @@ seq: &seq [*valref, bar]
     verify_assertion(t, [&](Tree const&){ return t.depth_desc(NONE); });
 }
 
+TEST(Tree, is_ancestor)
+{
+    Tree t = parse_in_arena(R"(a0:
+  a1:
+    a2:
+      a3: a
+b0:
+  b1:
+    b2:
+      b3: b
+)");
+    const size_t map_id = t.root_id();
+    const size_t a0_id = t.first_child(map_id);
+    const size_t a1_id = t.first_child(a0_id);
+    const size_t a2_id = t.first_child(a1_id);
+    const size_t a3_id = t.first_child(a2_id);
+    const size_t b0_id = t.first_child(map_id);
+    const size_t b1_id = t.first_child(b0_id);
+    const size_t b2_id = t.first_child(b1_id);
+    const size_t b3_id = t.first_child(b2_id);
+    ConstNodeRef map = t.cref(map_id);
+    ConstNodeRef a0 = t.cref(a0_id);
+    ConstNodeRef a1 = t.cref(a1_id);
+    ConstNodeRef a2 = t.cref(a2_id);
+    ConstNodeRef a3 = t.cref(a3_id);
+    ConstNodeRef b0 = t.cref(b0_id);
+    ConstNodeRef b1 = t.cref(b1_id);
+    ConstNodeRef b2 = t.cref(b2_id);
+    ConstNodeRef b3 = t.cref(b3_id);
+    NodeRef mmap = t.ref(map_id);
+    NodeRef ma0 = t.ref(a0_id);
+    NodeRef ma1 = t.ref(a1_id);
+    NodeRef ma2 = t.ref(a2_id);
+    NodeRef ma3 = t.ref(a3_id);
+    NodeRef mb0 = t.ref(b0_id);
+    NodeRef mb1 = t.ref(b1_id);
+    NodeRef mb2 = t.ref(b2_id);
+    NodeRef mb3 = t.ref(b3_id);
+    //
+    EXPECT_TRUE(t.is_ancestor(a0_id, map_id));
+    EXPECT_TRUE(t.is_ancestor(a1_id, map_id));
+    EXPECT_TRUE(t.is_ancestor(a2_id, map_id));
+    EXPECT_TRUE(t.is_ancestor(a3_id, map_id));
+    EXPECT_FALSE(t.is_ancestor(a0_id, a0_id));
+    EXPECT_TRUE(t.is_ancestor(a1_id, a0_id));
+    EXPECT_TRUE(t.is_ancestor(a2_id, a0_id));
+    EXPECT_TRUE(t.is_ancestor(a3_id, a0_id));
+    EXPECT_FALSE(t.is_ancestor(a1_id, a1_id));
+    EXPECT_TRUE(t.is_ancestor(a2_id, a1_id));
+    EXPECT_TRUE(t.is_ancestor(a3_id, a1_id));
+    EXPECT_FALSE(t.is_ancestor(a2_id, a2_id));
+    EXPECT_TRUE(t.is_ancestor(a3_id, a2_id));
+    EXPECT_FALSE(t.is_ancestor(a3_id, a3_id));
+    EXPECT_TRUE(t.is_ancestor(b0_id, map_id));
+    EXPECT_TRUE(t.is_ancestor(b1_id, map_id));
+    EXPECT_TRUE(t.is_ancestor(b2_id, map_id));
+    EXPECT_TRUE(t.is_ancestor(b3_id, map_id));
+    EXPECT_FALSE(t.is_ancestor(b0_id, b0_id));
+    EXPECT_TRUE(t.is_ancestor(b1_id, b0_id));
+    EXPECT_TRUE(t.is_ancestor(b2_id, b0_id));
+    EXPECT_TRUE(t.is_ancestor(b3_id, b0_id));
+    EXPECT_FALSE(t.is_ancestor(b1_id, b1_id));
+    EXPECT_TRUE(t.is_ancestor(b2_id, b1_id));
+    EXPECT_TRUE(t.is_ancestor(b3_id, b1_id));
+    EXPECT_FALSE(t.is_ancestor(b2_id, b2_id));
+    EXPECT_TRUE(t.is_ancestor(b3_id, b2_id));
+    EXPECT_FALSE(t.is_ancestor(b3_id, b3_id));
+    //
+    EXPECT_FALSE(t.is_ancestor(map_id, a0_id));
+    EXPECT_FALSE(t.is_ancestor(map_id, a1_id));
+    EXPECT_FALSE(t.is_ancestor(map_id, a2_id));
+    EXPECT_FALSE(t.is_ancestor(map_id, a3_id));
+    EXPECT_FALSE(t.is_ancestor(a0_id, a0_id));
+    EXPECT_FALSE(t.is_ancestor(a0_id, a1_id));
+    EXPECT_FALSE(t.is_ancestor(a0_id, a2_id));
+    EXPECT_FALSE(t.is_ancestor(a0_id, a3_id));
+    EXPECT_FALSE(t.is_ancestor(a1_id, a1_id));
+    EXPECT_FALSE(t.is_ancestor(a1_id, a2_id));
+    EXPECT_FALSE(t.is_ancestor(a1_id, a3_id));
+    EXPECT_FALSE(t.is_ancestor(a2_id, a2_id));
+    EXPECT_FALSE(t.is_ancestor(a2_id, a3_id));
+    EXPECT_FALSE(t.is_ancestor(a3_id, a3_id));
+    EXPECT_FALSE(t.is_ancestor(map_id, b0_id));
+    EXPECT_FALSE(t.is_ancestor(map_id, b1_id));
+    EXPECT_FALSE(t.is_ancestor(map_id, b2_id));
+    EXPECT_FALSE(t.is_ancestor(map_id, b3_id));
+    EXPECT_FALSE(t.is_ancestor(b0_id, b0_id));
+    EXPECT_FALSE(t.is_ancestor(b0_id, b1_id));
+    EXPECT_FALSE(t.is_ancestor(b0_id, b2_id));
+    EXPECT_FALSE(t.is_ancestor(b0_id, b3_id));
+    EXPECT_FALSE(t.is_ancestor(b1_id, b1_id));
+    EXPECT_FALSE(t.is_ancestor(b1_id, b2_id));
+    EXPECT_FALSE(t.is_ancestor(b1_id, b3_id));
+    EXPECT_FALSE(t.is_ancestor(b2_id, b2_id));
+    EXPECT_FALSE(t.is_ancestor(b2_id, b3_id));
+    EXPECT_FALSE(t.is_ancestor(b3_id, b3_id));
+    //
+    verify_assertion(t, [&](Tree const&){ return t.is_ancestor(NONE, map_id); });
+    //
+    EXPECT_TRUE(a0.is_ancestor(map));
+    EXPECT_TRUE(a1.is_ancestor(map));
+    EXPECT_TRUE(a2.is_ancestor(map));
+    EXPECT_TRUE(a3.is_ancestor(map));
+    EXPECT_FALSE(a0.is_ancestor(a0));
+    EXPECT_TRUE(a1.is_ancestor(a0));
+    EXPECT_TRUE(a2.is_ancestor(a0));
+    EXPECT_TRUE(a3.is_ancestor(a0));
+    EXPECT_FALSE(a1.is_ancestor(a1));
+    EXPECT_TRUE(a2.is_ancestor(a1));
+    EXPECT_TRUE(a3.is_ancestor(a1));
+    EXPECT_FALSE(a2.is_ancestor(a2));
+    EXPECT_TRUE(a3.is_ancestor(a2));
+    EXPECT_FALSE(a3.is_ancestor(a3));
+    EXPECT_TRUE(b0.is_ancestor(map));
+    EXPECT_TRUE(b1.is_ancestor(map));
+    EXPECT_TRUE(b2.is_ancestor(map));
+    EXPECT_TRUE(b3.is_ancestor(map));
+    EXPECT_FALSE(b0.is_ancestor(b0));
+    EXPECT_TRUE(b1.is_ancestor(b0));
+    EXPECT_TRUE(b2.is_ancestor(b0));
+    EXPECT_TRUE(b3.is_ancestor(b0));
+    EXPECT_FALSE(b1.is_ancestor(b1));
+    EXPECT_TRUE(b2.is_ancestor(b1));
+    EXPECT_TRUE(b3.is_ancestor(b1));
+    EXPECT_FALSE(b2.is_ancestor(b2));
+    EXPECT_TRUE(b3.is_ancestor(b2));
+    EXPECT_FALSE(b3.is_ancestor(b3));
+    //
+    EXPECT_FALSE(map.is_ancestor(a0));
+    EXPECT_FALSE(map.is_ancestor(a1));
+    EXPECT_FALSE(map.is_ancestor(a2));
+    EXPECT_FALSE(map.is_ancestor(a3));
+    EXPECT_FALSE(a0.is_ancestor(a0));
+    EXPECT_FALSE(a0.is_ancestor(a1));
+    EXPECT_FALSE(a0.is_ancestor(a2));
+    EXPECT_FALSE(a0.is_ancestor(a3));
+    EXPECT_FALSE(a1.is_ancestor(a1));
+    EXPECT_FALSE(a1.is_ancestor(a2));
+    EXPECT_FALSE(a1.is_ancestor(a3));
+    EXPECT_FALSE(a2.is_ancestor(a2));
+    EXPECT_FALSE(a2.is_ancestor(a3));
+    EXPECT_FALSE(a3.is_ancestor(a3));
+    EXPECT_FALSE(map.is_ancestor(b0));
+    EXPECT_FALSE(map.is_ancestor(b1));
+    EXPECT_FALSE(map.is_ancestor(b2));
+    EXPECT_FALSE(map.is_ancestor(b3));
+    EXPECT_FALSE(b0.is_ancestor(b0));
+    EXPECT_FALSE(b0.is_ancestor(b1));
+    EXPECT_FALSE(b0.is_ancestor(b2));
+    EXPECT_FALSE(b0.is_ancestor(b3));
+    EXPECT_FALSE(b1.is_ancestor(b1));
+    EXPECT_FALSE(b1.is_ancestor(b2));
+    EXPECT_FALSE(b1.is_ancestor(b3));
+    EXPECT_FALSE(b2.is_ancestor(b2));
+    EXPECT_FALSE(b2.is_ancestor(b3));
+    EXPECT_FALSE(b3.is_ancestor(b3));
+    //
+    EXPECT_TRUE(ma0.is_ancestor(mmap));
+    EXPECT_TRUE(ma1.is_ancestor(mmap));
+    EXPECT_TRUE(ma2.is_ancestor(mmap));
+    EXPECT_TRUE(ma3.is_ancestor(mmap));
+    EXPECT_FALSE(ma0.is_ancestor(ma0));
+    EXPECT_TRUE(ma1.is_ancestor(ma0));
+    EXPECT_TRUE(ma2.is_ancestor(ma0));
+    EXPECT_TRUE(ma3.is_ancestor(ma0));
+    EXPECT_FALSE(ma1.is_ancestor(ma1));
+    EXPECT_TRUE(ma2.is_ancestor(ma1));
+    EXPECT_TRUE(ma3.is_ancestor(ma1));
+    EXPECT_FALSE(ma2.is_ancestor(ma2));
+    EXPECT_TRUE(ma3.is_ancestor(ma2));
+    EXPECT_FALSE(ma3.is_ancestor(ma3));
+    EXPECT_TRUE(mb0.is_ancestor(mmap));
+    EXPECT_TRUE(mb1.is_ancestor(mmap));
+    EXPECT_TRUE(mb2.is_ancestor(mmap));
+    EXPECT_TRUE(mb3.is_ancestor(mmap));
+    EXPECT_FALSE(mb0.is_ancestor(mb0));
+    EXPECT_TRUE(mb1.is_ancestor(mb0));
+    EXPECT_TRUE(mb2.is_ancestor(mb0));
+    EXPECT_TRUE(mb3.is_ancestor(mb0));
+    EXPECT_FALSE(mb1.is_ancestor(mb1));
+    EXPECT_TRUE(mb2.is_ancestor(mb1));
+    EXPECT_TRUE(mb3.is_ancestor(mb1));
+    EXPECT_FALSE(mb2.is_ancestor(mb2));
+    EXPECT_TRUE(mb3.is_ancestor(mb2));
+    EXPECT_FALSE(mb3.is_ancestor(mb3));
+    //
+    EXPECT_FALSE(mmap.is_ancestor(ma0));
+    EXPECT_FALSE(mmap.is_ancestor(ma1));
+    EXPECT_FALSE(mmap.is_ancestor(ma2));
+    EXPECT_FALSE(mmap.is_ancestor(ma3));
+    EXPECT_FALSE(ma0.is_ancestor(ma0));
+    EXPECT_FALSE(ma0.is_ancestor(ma1));
+    EXPECT_FALSE(ma0.is_ancestor(ma2));
+    EXPECT_FALSE(ma0.is_ancestor(ma3));
+    EXPECT_FALSE(ma1.is_ancestor(ma1));
+    EXPECT_FALSE(ma1.is_ancestor(ma2));
+    EXPECT_FALSE(ma1.is_ancestor(ma3));
+    EXPECT_FALSE(ma2.is_ancestor(ma2));
+    EXPECT_FALSE(ma2.is_ancestor(ma3));
+    EXPECT_FALSE(ma3.is_ancestor(ma3));
+    EXPECT_FALSE(mmap.is_ancestor(mb0));
+    EXPECT_FALSE(mmap.is_ancestor(mb1));
+    EXPECT_FALSE(mmap.is_ancestor(mb2));
+    EXPECT_FALSE(mmap.is_ancestor(mb3));
+    EXPECT_FALSE(mb0.is_ancestor(mb0));
+    EXPECT_FALSE(mb0.is_ancestor(mb1));
+    EXPECT_FALSE(mb0.is_ancestor(mb2));
+    EXPECT_FALSE(mb0.is_ancestor(mb3));
+    EXPECT_FALSE(mb1.is_ancestor(mb1));
+    EXPECT_FALSE(mb1.is_ancestor(mb2));
+    EXPECT_FALSE(mb1.is_ancestor(mb3));
+    EXPECT_FALSE(mb2.is_ancestor(mb2));
+    EXPECT_FALSE(mb2.is_ancestor(mb3));
+    EXPECT_FALSE(mb3.is_ancestor(mb3));
+    //
+}
+
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -3790,8 +4132,10 @@ TEST(set_root_as_stream, empty_tree)
     EXPECT_EQ(r.is_stream(), false);
     EXPECT_EQ(r.num_children(), 0u);
     t.set_root_as_stream();
+    r = t.rootref();
     EXPECT_EQ(r.is_stream(), true);
-    EXPECT_EQ(r.num_children(), 0u);
+    ASSERT_EQ(r.num_children(), 1u);
+    EXPECT_EQ(r[0].is_doc(), 1u);
 }
 
 TEST(set_root_as_stream, already_with_stream)

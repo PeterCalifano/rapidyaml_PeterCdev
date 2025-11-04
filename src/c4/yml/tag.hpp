@@ -56,16 +56,15 @@ RYML_EXPORT bool is_custom_tag(csubstr tag);
 
 struct RYML_EXPORT TagDirective
 {
-    /** Eg `!e!` in `%TAG !e! tag:example.com,2000:app/` */
+    /** Eg <pre>!e!</pre> in <pre>%TAG !e! tag:example.com,2000:app/</pre> */
     csubstr handle;
-    /** Eg `tag:example.com,2000:app/` in `%TAG !e! tag:example.com,2000:app/` */
+    /** Eg <pre>tag:example.com,2000:app/</pre> in <pre>%TAG !e! tag:example.com,2000:app/</pre> */
     csubstr prefix;
     /** The next node to which this tag directive applies */
     id_type next_node_id;
 
     bool create_from_str(csubstr directive_); ///< leaves next_node_id unfilled
-    bool create_from_str(csubstr directive_, Tree *tree);
-    size_t transform(csubstr tag, substr output, Callbacks const& callbacks) const;
+    size_t transform(csubstr tag, substr output, Callbacks const& callbacks, bool with_brackets=true) const;
 };
 
 struct RYML_EXPORT TagDirectiveRange

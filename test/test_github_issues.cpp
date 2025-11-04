@@ -4,6 +4,117 @@
 namespace c4 {
 namespace yml {
 
+TEST(github, 475_0_space)
+{
+    Tree t;
+    ExpectError::check_success(&t, [&t]{
+        parse_in_arena(R"(
+test:
+- {a: 1}
+# next line has a trailing space
+- {b: 2} 
+# next line has a trailing space
+- [0, {c: 3}] 
+)", &t);
+    });
+    ConstNodeRef test = t["test"];
+    ASSERT_TRUE(test.is_seq());
+    ASSERT_EQ(test.num_children(), 3u);
+}
+
+TEST(github, 475_1_space_indented)
+{
+    Tree t;
+    ExpectError::check_success(&t, [&t]{
+        parse_in_arena(R"(
+test:
+  - {a: 1}
+  # next line has a trailing space
+  - {b: 2} 
+  # next line has a trailing space
+  - [0, {c: 3}] 
+)", &t);
+    });
+    ConstNodeRef test = t["test"];
+    ASSERT_TRUE(test.is_seq());
+    ASSERT_EQ(test.num_children(), 3u);
+}
+
+TEST(github, 475_2_tab)
+{
+    Tree t;
+    ExpectError::check_success(&t, [&t]{
+        parse_in_arena(R"(
+test:
+- {a: 1}
+# next line has a trailing tab
+- {b: 2}	
+# next line has a trailing tab
+- [0, {c: 3}]	
+)", &t);
+    });
+    ConstNodeRef test = t["test"];
+    ASSERT_TRUE(test.is_seq());
+    ASSERT_EQ(test.num_children(), 3u);
+}
+
+TEST(github, 475_3_tab_indented)
+{
+    Tree t;
+    ExpectError::check_success(&t, [&t]{
+        parse_in_arena(R"(
+test:
+  - {a: 1}
+  # next line has a trailing tab
+  - {b: 2}	
+  # next line has a trailing tab
+  - [0, {c: 3}]	
+)", &t);
+    });
+    ConstNodeRef test = t["test"];
+    ASSERT_TRUE(test.is_seq());
+    ASSERT_EQ(test.num_children(), 3u);
+}
+
+TEST(github, 475_4_space_map)
+{
+    Tree t;
+    ExpectError::check_success(&t, [&t]{
+        parse_in_arena(R"(
+test:
+  0: {a: 1}
+  # next line has a trailing space
+  1: {b: 2} 
+  # next line has a trailing space
+  2: [0, {c: 3}] 
+)", &t);
+    });
+    ConstNodeRef test = t["test"];
+    ASSERT_TRUE(test.is_map());
+    ASSERT_EQ(test.num_children(), 3u);
+}
+
+TEST(github, 475_5_tab_map)
+{
+    Tree t;
+    ExpectError::check_success(&t, [&t]{
+        parse_in_arena(R"(
+test:
+  0: {a: 1}
+  # next line has a trailing tab
+  1: {b: 2}	
+  # next line has a trailing tab
+  2: [0, {c: 3}]	
+)", &t);
+    });
+    ConstNodeRef test = t["test"];
+    ASSERT_TRUE(test.is_map());
+    ASSERT_EQ(test.num_children(), 3u);
+}
+
+
+//-----------------------------------------------------------------------------
+
 TEST(github, 455_0_ok)
 {
     Tree t;
@@ -301,7 +412,7 @@ ADD_CASE_TO_GROUP("github3-problem2-ex1",
 R"(
 audio resource:
 )",
-N(MB, L{N(KP|VP, "audio resource", /*"~"*/{})})
+N(MB, L{N(KP|VN, "audio resource", /*"~"*/{})})
 );
 
 ADD_CASE_TO_GROUP("github3-problem2-ex2",
@@ -310,7 +421,7 @@ audio resource:
 more:
   example: y
 )",
-N(MB, L{N(KP|VP, "audio resource", /*"~"*/{}), N(KP|MB, "more", L{N(KP|VP, "example", "y")})})
+N(MB, L{N(KP|VN, "audio resource", /*"~"*/{}), N(KP|MB, "more", L{N(KP|VP, "example", "y")})})
 );
 
 ADD_CASE_TO_GROUP("github3-problem3",
@@ -625,9 +736,9 @@ R"(
   LineCol(4, 15)
 );
 
-ADD_CASE_TO_GROUP("github128/1", RESOLVE_REFS | EXPECT_PARSE_ERROR, "a: *invalid");
-ADD_CASE_TO_GROUP("github128/2", RESOLVE_REFS | EXPECT_PARSE_ERROR, "*");
-ADD_CASE_TO_GROUP("github128/3", RESOLVE_REFS | EXPECT_PARSE_ERROR, "*abc");
+ADD_CASE_TO_GROUP("github128/1", RESOLVE_REFS | EXPECT_RESOLVE_ERROR, "a: *invalid");
+ADD_CASE_TO_GROUP("github128/2", RESOLVE_REFS | EXPECT_RESOLVE_ERROR, "*");
+ADD_CASE_TO_GROUP("github128/3", RESOLVE_REFS | EXPECT_RESOLVE_ERROR, "*abc");
 ADD_CASE_TO_GROUP("github128/4", "*abc", N(VAL, "*abc", AR(VALREF, "*abc")));
 
 ADD_CASE_TO_GROUP("github129", RESOLVE_REFS, R"(

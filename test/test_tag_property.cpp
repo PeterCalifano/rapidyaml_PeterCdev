@@ -1054,6 +1054,22 @@ TEST(tags, fuzzcrash0)
     });
 }
 
+TEST(tags, ys0)
+{
+    csubstr yaml = "!yamlscript/v0/bare\n--- !code\n42\n";
+    test_check_emit_check(yaml, [](Tree const &t){
+        EXPECT_TRUE(t.rootref().is_stream());
+        EXPECT_TRUE(t.docref(0).is_val());
+        EXPECT_TRUE(t.docref(0).has_val_tag());
+        EXPECT_EQ(t.docref(0).val_tag(), "!yamlscript/v0/bare");
+        EXPECT_EQ(t.docref(0).val(), csubstr{});
+        EXPECT_TRUE(t.docref(1).is_val());
+        EXPECT_TRUE(t.docref(1).has_val_tag());
+        EXPECT_EQ(t.docref(1).val_tag(), "!code");
+        EXPECT_EQ(t.docref(1).val(), "42");
+    });
+}
+
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -1300,7 +1316,7 @@ R"(
 ? b
 )",
 N(STREAM, L{
-    N(DOC|MB, TL("!!set", L{N(KP|VP, "a", /*"~"*/{}), N(KP|VP, "b", /*"~"*/{})})),
+    N(DOC|MB, TL("!!set", L{N(KP|VN, "a", /*"~"*/{}), N(KP|VN, "b", /*"~"*/{})})),
 })
 );
 
@@ -1311,7 +1327,7 @@ R"(
 ? b
 )",
 N(STREAM, L{
-    N(DOC|MB, TL("!!set", L{N(KP|VP, "a", /*"~"*/{}), N(KP|VP, "b", /*"~"*/{})})),
+    N(DOC|MB, TL("!!set", L{N(KP|VN, "a", /*"~"*/{}), N(KP|VN, "b", /*"~"*/{})})),
 })
 );
 

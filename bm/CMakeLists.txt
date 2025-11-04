@@ -7,6 +7,10 @@ find_package(Python REQUIRED COMPONENTS Interpreter)
 # thirdparty libs that will be compared with ryml
 
 set(_ed ${CMAKE_CURRENT_BINARY_DIR}/subprojects) # casual ryml extern dir (these projects are not part of ryml and are downloaded and compiled on the fly)
+if(NOT (CMAKE_VERSION VERSION_LESS "4.0.0"))
+    c4_log(STATUS "setting CMAKE_POLICY_VERSION_MINIMUM=3.5 to compile benchmarked libs")
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
+endif()
 
 # libyaml
 c4_require_subproject(libyaml REMOTE
@@ -95,6 +99,12 @@ c4_download_remote_proj(rapidjson rapidjson_dir
     GIT_REPOSITORY https://github.com/Tencent/rapidjson
     GIT_TAG version1.1.0)
 set(RYML_RAPIDJSON_INC_DIR ${rapidjson_dir}/include)
+if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/rapidjson.was.patched)
+    execute_process(COMMAND ${CMAKE_COMMAND} -E echo "cd ${rapidjson_dir} ; git --git-dir= apply ${CMAKE_CURRENT_LIST_DIR}/rapidjson.fix.diff"
+        COMMAND git --git-dir= apply ${CMAKE_CURRENT_LIST_DIR}/rapidjson.fix.diff
+        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/rapidjson.was.patched
+        WORKING_DIRECTORY ${rapidjson_dir})
+endif()
 
 # sajson is header only
 set(sajson_dir ${_ed}/sajson)
@@ -109,8 +119,13 @@ set(RYML_SAJSON_INC_DIR ${sajson_dir}/include)
 function(ryml_add_bm_comparison_exe name)
     c4_add_executable(ryml-bm-${name}
         SOURCES bm_common.hpp ${ARGN}
+            ../src_extra/c4/yml/extra/event_handler_ints.hpp
+            ../src_extra/c4/yml/extra/event_handler_ints.cpp
         LIBS ryml yaml yaml-cpp benchmark jsoncpp_static nlohmann_json c4fs
-        INC_DIRS ${RYML_RAPIDJSON_INC_DIR} ${RYML_SAJSON_INC_DIR}
+        INC_DIRS
+            ${RYML_RAPIDJSON_INC_DIR}
+            ${RYML_SAJSON_INC_DIR}
+            ../src_extra
         FOLDER bm)
     if(RYML_DBG)
         target_compile_definitions(ryml-bm-${name} PRIVATE RYML_DBG)
@@ -123,9 +138,8 @@ function(ryml_add_bm_comparison_exe name)
     _c4_set_target_folder(ryml-bm-${name}-all bm/run)
 endfunction()
 
-ryml_add_bm_comparison_exe(parse bm_parse.cpp)
 ryml_add_bm_comparison_exe(emit bm_emit.cpp)
-
+ryml_add_bm_comparison_exe(parse bm_parse.cpp)
 
 function(ryml_add_bm_comparison_case target name case_file)
     c4_dbg("adding benchmark case: ${case_file}")

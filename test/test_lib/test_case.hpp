@@ -8,7 +8,7 @@
 #include "c4/std/string.hpp"
 #include "c4/format.hpp"
 #include <c4/yml/yml.hpp>
-#include <c4/yml/detail/parser_dbg.hpp>
+#include <c4/yml/detail/dbgprint.hpp>
 #include <c4/yml/detail/print.hpp>
 #endif
 
@@ -130,9 +130,12 @@ void print_test_tree(const char *message, TestCaseNode const& t);
 void print_path(ConstNodeRef const& p);
 
 
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 
 template<class CheckFn>
-void test_check_emit_check(Tree const& t, CheckFn check_fn)
+void test_check_emit_check_with_parser(Tree const& t, Parser &parser, CheckFn &&check_fn)
 {
     #ifdef RYML_DBG
     print_tree(t);
@@ -140,32 +143,78 @@ void test_check_emit_check(Tree const& t, CheckFn check_fn)
     {
         SCOPED_TRACE("original yaml");
         test_invariants(t);
-        check_fn(t);
+        std::forward<CheckFn>(check_fn)(t, parser);
     }
-    auto emit_and_parse = [&check_fn](Tree const& tp, const char* identifier){
+    auto emit_and_parse = [&](Tree const& tp, const char* identifier){
         SCOPED_TRACE(identifier);
         std::string emitted = emitrs_yaml<std::string>(tp);
         #ifdef RYML_DBG
-        printf("~~~%s~~~\n%.*s", identifier, (int)emitted.size(), emitted.data());
+        printf("~~~%s~~~[%zu]\n%.*s", identifier, emitted.size(), (int)emitted.size(), emitted.data());
         #endif
-        Tree cp = parse_in_arena(to_csubstr(emitted));
+        Tree cp = parse_in_arena(&parser, to_csubstr(emitted));
         #ifdef RYML_DBG
         print_tree(cp);
         #endif
         test_invariants(cp);
-        check_fn(cp);
+        std::forward<CheckFn>(check_fn)(cp, parser);
         return cp;
     };
     Tree cp = emit_and_parse(t, "emitted 1");
     cp = emit_and_parse(cp, "emitted 2");
     cp = emit_and_parse(cp, "emitted 3");
 }
+template<class CheckFn>
+void test_check_emit_check(Tree const& t, Parser &parser, CheckFn &&check_fn)
+{
+    test_check_emit_check_with_parser(t, parser, [&check_fn](Tree const& t_, Parser const&){
+        std::forward<CheckFn>(check_fn)(t_);
+    });
+}
+
 
 template<class CheckFn>
-void test_check_emit_check(csubstr yaml, CheckFn check_fn)
+void test_check_emit_check_with_parser(csubstr yaml, ParserOptions opts, CheckFn check_fn)
 {
-    Tree t = parse_in_arena(yaml);
-    test_check_emit_check(t, check_fn);
+    Parser::handler_type evt_handler = {};
+    Parser parser(&evt_handler, opts);
+    const Tree t = parse_in_arena(&parser, yaml);
+    test_check_emit_check_with_parser(t, parser, std::forward<CheckFn>(check_fn));
+}
+template<class CheckFn>
+void test_check_emit_check(csubstr yaml, ParserOptions opts, CheckFn &&check_fn)
+{
+    Parser::handler_type evt_handler = {};
+    Parser parser(&evt_handler, opts);
+    const Tree t = parse_in_arena(&parser, yaml);
+    test_check_emit_check(t, parser, std::forward<CheckFn>(check_fn));
+}
+
+
+template<class CheckFn>
+void test_check_emit_check_with_parser(Tree const& t, CheckFn &&check_fn)
+{
+    Parser::handler_type evt_handler = {};
+    Parser parser(&evt_handler, ParserOptions());
+    test_check_emit_check_with_parser(t, parser, check_fn);
+}
+template<class CheckFn>
+void test_check_emit_check(Tree const& t, CheckFn &&check_fn)
+{
+    Parser::handler_type evt_handler = {};
+    Parser parser(&evt_handler, ParserOptions());
+    test_check_emit_check(t, parser, std::forward<CheckFn>(check_fn));
+}
+
+
+template<class CheckFn>
+void test_check_emit_check_with_parser(csubstr yaml, CheckFn &&check_fn)
+{
+    test_check_emit_check_with_parser(yaml, ParserOptions(), std::forward<CheckFn>(check_fn));
+}
+template<class CheckFn>
+void test_check_emit_check(csubstr yaml, CheckFn &&check_fn)
+{
+    test_check_emit_check(yaml, ParserOptions(), std::forward<CheckFn>(check_fn));
 }
 
 
@@ -220,10 +269,11 @@ struct ExpectError
 typedef enum {
     EXPECT_PARSE_ERROR = (1<<0),
     RESOLVE_REFS = (1<<1),
-    JSON_WRITE = (1<<2), // TODO: make it the opposite: opt-out instead of opt-in
-    JSON_READ = (1<<3),
-    HAS_CONTAINER_KEYS = (1<<4),
-    HAS_MULTILINE_SCALAR = (1<<5),
+    EXPECT_RESOLVE_ERROR = (1<<2),
+    JSON_WRITE = (1<<3), // TODO: make it the opposite: opt-out instead of opt-in
+    JSON_READ = (1<<4),
+    HAS_CONTAINER_KEYS = (1<<5),
+    HAS_MULTILINE_SCALAR = (1<<6),
 } TestCaseFlags_e;
 
 
@@ -250,6 +300,13 @@ struct Case
 // a persistent data store to avoid repeating operations on every test
 struct CaseDataLineEndings
 {
+    void assign(csubstr src_orig)
+    {
+        parse_buf_ints.assign(src_orig.begin(), src_orig.end());
+        src_buf.assign(src_orig.begin(), src_orig.end());
+        src = to_substr(src_buf);
+    }
+
     std::vector<char> src_buf;
     substr src;
 
@@ -274,6 +331,10 @@ struct CaseDataLineEndings
     Tree emitted_tree_json;
 
     Tree recreated;
+
+    std::string parse_buf_ints;
+    std::vector<int> parsed_ints;
+    std::vector<char> arena_ints;
 };
 
 

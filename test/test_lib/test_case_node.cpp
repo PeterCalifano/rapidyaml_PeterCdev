@@ -4,6 +4,9 @@
 
 C4_SUPPRESS_WARNING_GCC_CLANG_PUSH
 C4_SUPPRESS_WARNING_GCC("-Wuseless-cast")
+#if __GNUC__ >= 6
+C4_SUPPRESS_WARNING_GCC("-Wnull-dereference")
+#endif
 
 namespace c4 {
 namespace yml {
@@ -113,7 +116,7 @@ void TestCaseNode::compare_child(yml::ConstNodeRef const& n, id_type pos) const
         }
         else
         {
-            printf("error: node should have child %.*s: ", (int)expectedch.key.len, expectedch.key.str);
+            printf("error: node should have child with key [%zu]~~~%.*s~~~: ", expectedch.key.len, (int)expectedch.key.len, expectedch.key.str);
             fflush(stdout);
             print_path(n);
             fflush(stdout);

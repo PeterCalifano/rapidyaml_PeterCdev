@@ -8,6 +8,9 @@
 C4_SUPPRESS_WARNING_MSVC_PUSH
 C4_SUPPRESS_WARNING_GCC_CLANG_PUSH
 C4_SUPPRESS_WARNING_GCC_CLANG("-Wold-style-cast")
+#if __GNUC__ >= 6
+C4_SUPPRESS_WARNING_GCC("-Wnull-dereference")
+#endif
 
 namespace c4 {
 namespace yml {
@@ -28,9 +31,9 @@ using type_bits = uint32_t;
 
 /** a bit mask for marking node types and styles */
 typedef enum : type_bits {
-    #define __(v) (type_bits(1) << v) // a convenience define, undefined below
+    #define __(v) (type_bits(1) << v) // a convenience define, undefined below // NOLINT
     NOTYPE  = 0,         ///< no node type or style is set
-    KEY     = __(0),     ///< is member of a map, must have non-empty key
+    KEY     = __(0),     ///< is member of a map
     VAL     = __(1),     ///< a scalar: has a scalar (ie string) value, possibly empty. must be a leaf node, and cannot be MAP or SEQ
     MAP     = __(2),     ///< a map: a parent of KEYVAL/KEYSEQ/KEYMAP nodes
     SEQ     = __(3),     ///< a seq: a parent of VAL/SEQ/MAP nodes
@@ -42,28 +45,30 @@ typedef enum : type_bits {
     VALANCH = __(9),     ///< the val has an &anchor
     KEYTAG  = __(10),    ///< the key has a tag
     VALTAG  = __(11),    ///< the val has a tag
-    _TYMASK = __(12)-1,  ///< all the bits up to here
+    KEYNIL  = __(12),    ///< the key is null (eg `{ : b}` results in a null key)
+    VALNIL  = __(13),    ///< the val is null (eg `{a : }` results in a null val)
+    _TYMASK = __(14)-1,  ///< all the bits up to here
     //
     // unfiltered flags:
     //
-    KEY_UNFILT  = __(12), ///< the key scalar was left unfiltered; the parser was set not to filter. @see ParserOptions
-    VAL_UNFILT  = __(13), ///< the val scalar was left unfiltered; the parser was set not to filter. @see ParserOptions
+    KEY_UNFILT  = __(14), ///< the key scalar was left unfiltered; the parser was set not to filter. @see ParserOptions
+    VAL_UNFILT  = __(15), ///< the val scalar was left unfiltered; the parser was set not to filter. @see ParserOptions
     //
     // style flags:
     //
-    FLOW_SL     = __(14), ///< mark container with single-line flow style (seqs as '[val1,val2], maps as '{key: val,key2: val2}')
-    FLOW_ML     = __(15), ///< (NOT IMPLEMENTED, work in progress) mark container with multi-line flow style (seqs as '[\n  val1,\n  val2\n], maps as '{\n  key: val,\n  key2: val2\n}')
-    BLOCK       = __(16), ///< mark container with block style (seqs as '- val\n', maps as 'key: val')
-    KEY_LITERAL = __(17), ///< mark key scalar as multiline, block literal |
-    VAL_LITERAL = __(18), ///< mark val scalar as multiline, block literal |
-    KEY_FOLDED  = __(19), ///< mark key scalar as multiline, block folded >
-    VAL_FOLDED  = __(20), ///< mark val scalar as multiline, block folded >
-    KEY_SQUO    = __(21), ///< mark key scalar as single quoted '
-    VAL_SQUO    = __(22), ///< mark val scalar as single quoted '
-    KEY_DQUO    = __(23), ///< mark key scalar as double quoted "
-    VAL_DQUO    = __(24), ///< mark val scalar as double quoted "
-    KEY_PLAIN   = __(25), ///< mark key scalar as plain scalar (unquoted, even when multiline)
-    VAL_PLAIN   = __(26), ///< mark val scalar as plain scalar (unquoted, even when multiline)
+    FLOW_SL     = __(16), ///< mark container with single-line flow style (seqs as '[val1,val2], maps as '{key: val,key2: val2}')
+    FLOW_ML     = __(17), ///< (NOT IMPLEMENTED, work in progress) mark container with multi-line flow style (seqs as '[\n  val1,\n  val2\n], maps as '{\n  key: val,\n  key2: val2\n}')
+    BLOCK       = __(18), ///< mark container with block style (seqs as '- val\n', maps as 'key: val')
+    KEY_LITERAL = __(19), ///< mark key scalar as multiline, block literal |
+    VAL_LITERAL = __(20), ///< mark val scalar as multiline, block literal |
+    KEY_FOLDED  = __(21), ///< mark key scalar as multiline, block folded >
+    VAL_FOLDED  = __(22), ///< mark val scalar as multiline, block folded >
+    KEY_SQUO    = __(23), ///< mark key scalar as single quoted '
+    VAL_SQUO    = __(24), ///< mark val scalar as single quoted '
+    KEY_DQUO    = __(25), ///< mark key scalar as double quoted "
+    VAL_DQUO    = __(26), ///< mark val scalar as double quoted "
+    KEY_PLAIN   = __(27), ///< mark key scalar as plain scalar (unquoted, even when multiline)
+    VAL_PLAIN   = __(28), ///< mark val scalar as plain scalar (unquoted, even when multiline)
     //
     // type combination masks:
     //
@@ -169,6 +174,8 @@ public:
     C4_ALWAYS_INLINE bool has_val()           const noexcept { return (type & VAL) != 0; }
     C4_ALWAYS_INLINE bool is_val()            const noexcept { return (type & KEYVAL) == VAL; }
     C4_ALWAYS_INLINE bool is_keyval()         const noexcept { return (type & KEYVAL) == KEYVAL; }
+    C4_ALWAYS_INLINE bool key_is_null()       const noexcept { return (type & KEYNIL) != 0; }
+    C4_ALWAYS_INLINE bool val_is_null()       const noexcept { return (type & VALNIL) != 0; }
     C4_ALWAYS_INLINE bool has_key_tag()       const noexcept { return (type & KEYTAG) != 0; }
     C4_ALWAYS_INLINE bool has_val_tag()       const noexcept { return (type & VALTAG) != 0; }
     C4_ALWAYS_INLINE bool has_key_anchor()    const noexcept { return (type & KEYANCH) != 0; }
@@ -189,7 +196,7 @@ public:
 
 public:
 
-    /** @name container+scalar style queries
+    /** @name style functions
      * @{ */
 
     C4_ALWAYS_INLINE bool is_container_styled() const noexcept { return (type & (CONTAINER_STYLE)) != 0; }
@@ -214,9 +221,13 @@ public:
     C4_ALWAYS_INLINE bool is_val_quoted() const noexcept { return (type & VALQUO) != 0; }
     C4_ALWAYS_INLINE bool is_quoted() const noexcept { return (type & (KEYQUO|VALQUO)) != 0; }
 
+    C4_ALWAYS_INLINE NodeType key_style() const noexcept { return (type & (KEY_STYLE)); }
+    C4_ALWAYS_INLINE NodeType val_style() const noexcept { return (type & (VAL_STYLE)); }
+
     C4_ALWAYS_INLINE void set_container_style(NodeType_e style) noexcept { type = ((style & CONTAINER_STYLE) | (type & ~CONTAINER_STYLE)); }
     C4_ALWAYS_INLINE void set_key_style(NodeType_e style) noexcept { type = ((style & KEY_STYLE) | (type & ~KEY_STYLE)); }
     C4_ALWAYS_INLINE void set_val_style(NodeType_e style) noexcept { type = ((style & VAL_STYLE) | (type & ~VAL_STYLE)); }
+    C4_ALWAYS_INLINE void clear_style() noexcept { type &= ~STYLE; }
 
     /** @} */
 

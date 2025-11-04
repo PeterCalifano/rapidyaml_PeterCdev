@@ -1,5 +1,5 @@
 #include "c4/yml/tree.hpp"
-#include "c4/yml/detail/parser_dbg.hpp"
+#include "c4/yml/detail/dbgprint.hpp"
 #include "c4/yml/node.hpp"
 #include "c4/yml/reference_resolver.hpp"
 
@@ -114,9 +114,12 @@ Tree::Tree(Tree const& that) : Tree(that.m_callbacks)
 
 Tree& Tree::operator= (Tree const& that)
 {
-    _free();
-    m_callbacks = that.m_callbacks;
-    _copy(that);
+    if(&that != this)
+    {
+        _free();
+        m_callbacks = that.m_callbacks;
+        _copy(that);
+    }
     return *this;
 }
 
@@ -125,11 +128,14 @@ Tree::Tree(Tree && that) noexcept : Tree(that.m_callbacks)
     _move(that);
 }
 
-Tree& Tree::operator= (Tree && that) RYML_NOEXCEPT
+Tree& Tree::operator= (Tree && that) noexcept
 {
-    _free();
-    m_callbacks = that.m_callbacks;
-    _move(that);
+    if(&that != this)
+    {
+        _free();
+        m_callbacks = that.m_callbacks;
+        _move(that);
+    }
     return *this;
 }
 
@@ -508,6 +514,7 @@ void Tree::_rem_hierarchy(id_type i)
 }
 
 //-----------------------------------------------------------------------------
+/** @cond dev */
 id_type Tree::_do_reorder(id_type *node, id_type count)
 {
     // swap this node if it's not in place
@@ -527,6 +534,7 @@ id_type Tree::_do_reorder(id_type *node, id_type count)
     }
     return count;
 }
+/** @endcond */
 
 void Tree::reorder()
 {
@@ -536,6 +544,7 @@ void Tree::reorder()
 
 
 //-----------------------------------------------------------------------------
+/** @cond dev */
 void Tree::_swap(id_type n_, id_type m_)
 {
     _RYML_CB_ASSERT(m_callbacks, (parent(n_) != NONE) || type(n_) == NOTYPE);
@@ -767,6 +776,7 @@ void Tree::_swap_props(id_type n_, id_type m_)
     std::swap(n.m_key, m.m_key);
     std::swap(n.m_val, m.m_val);
 }
+/** @endcond */
 
 //-----------------------------------------------------------------------------
 void Tree::move(id_type node, id_type after)
@@ -815,7 +825,13 @@ void Tree::set_root_as_stream()
     // don't use _add_flags() because it's checked and will fail
     if(!has_children(root))
     {
-        if(is_val(root))
+        if(is_container(root))
+        {
+            id_type next_doc = append_child(root);
+            _copy_props_wo_key(next_doc, root);
+            _p(next_doc)->m_type.add(DOC);
+        }
+        else
         {
             _p(root)->m_type.add(SEQ);
             id_type next_doc = append_child(root);
@@ -847,7 +863,13 @@ void Tree::set_root_as_stream()
 void Tree::remove_children(id_type node)
 {
     _RYML_CB_ASSERT(m_callbacks, get(node) != nullptr);
+    #if __GNUC__ >= 6
+    C4_SUPPRESS_WARNING_GCC_WITH_PUSH("-Wnull-dereference")
+    #endif
     id_type ich = get(node)->m_first_child;
+    #if __GNUC__ >= 6
+    C4_SUPPRESS_WARNING_GCC_POP
+    #endif
     while(ich != NONE)
     {
         remove_children(ich);
@@ -970,50 +992,65 @@ id_type Tree::duplicate_children_no_rep(Tree const *src, id_type node, id_type p
     id_type prev = after;
     for(id_type i = src->first_child(node); i != NONE; i = src->next_sibling(i))
     {
+        _c4dbgpf("duplicate_no_rep: {} -> {}/{}", i, parent, prev);
+        _RYML_CB_CHECK(m_callbacks, this != src || (parent != i && !is_ancestor(parent, i)));
         if(is_seq(parent))
         {
-            prev = duplicate(i, parent, prev);
+            _c4dbgpf("duplicate_no_rep: {} is seq", parent);
+            prev = duplicate(src, i, parent, prev);
         }
         else
         {
+            _c4dbgpf("duplicate_no_rep: {} is map", parent);
             _RYML_CB_ASSERT(m_callbacks, is_map(parent));
             // does the parent already have a node with key equal to that of the current duplicate?
-            id_type rep = NONE, rep_pos = NONE;
-            for(id_type j = first_child(parent), jcount = 0; j != NONE; ++jcount, j = next_sibling(j))
+            id_type dstnode_dup = NONE, dstnode_dup_pos = NONE;
             {
-                if(key(j) == key(i))
+                csubstr srckey = src->key(i);
+                for(id_type j = first_child(parent), jcount = 0; j != NONE; ++jcount, j = next_sibling(j))
                 {
-                    rep = j;
-                    rep_pos = jcount;
-                    break;
+                    if(key(j) == srckey)
+                    {
+                        _c4dbgpf("duplicate_no_rep: found matching key '{}' src={}/{} dst={}/{}", srckey, node, i, parent, j);
+                        dstnode_dup = j;
+                        dstnode_dup_pos = jcount;
+                        break;
+                    }
                 }
             }
-            if(rep == NONE) // there is no repetition; just duplicate
+            _c4dbgpf("duplicate_no_rep: dstnode_dup={} dstnode_dup_pos={} after_pos={}", dstnode_dup, dstnode_dup_pos, after_pos);
+            if(dstnode_dup == NONE) // there is no repetition; just duplicate
             {
+                _c4dbgpf("duplicate_no_rep: no repetition, just duplicate i={} parent={} prev={}", i, parent, prev);
                 prev = duplicate(src, i, parent, prev);
             }
             else  // yes, there is a repetition
             {
-                if(after_pos != NONE && rep_pos < after_pos)
+                if(after_pos != NONE && dstnode_dup_pos <= after_pos)
                 {
-                    // rep is located before the node which will be inserted,
+                    // the dst duplicate is located before the node which will be inserted,
                     // and will be overridden by the duplicate. So replace it.
-                    remove(rep);
+                    _c4dbgpf("duplicate_no_dstnode_dup: replace {}/{} with {}/{}", parent, dstnode_dup, node, i);
+                    if(prev == dstnode_dup)
+                        prev = prev_sibling(dstnode_dup);
+                    remove(dstnode_dup);
                     prev = duplicate(src, i, parent, prev);
                 }
                 else if(prev == NONE)
                 {
-                    // first iteration with prev = after = NONE and repetition
-                    prev = rep;
+                    _c4dbgpf("duplicate_no_dstnode_dup: {}=prev <- {}", prev, dstnode_dup);
+                    // first iteration with prev = after = NONE and dstnode_dupetition
+                    prev = dstnode_dup;
                 }
-                else if(rep != prev)
+                else if(dstnode_dup != prev)
                 {
-                    // rep is located after the node which will be inserted
-                    // and overrides it. So move the rep into this node's place.
-                    move(rep, prev);
-                    prev = rep;
+                    // dstnode_dup is located after the node which will be inserted
+                    // and overrides it. So move the dstnode_dup into this node's place.
+                    _c4dbgpf("duplicate_no_dstnode_dup: move({}, {})", dstnode_dup, prev);
+                    move(dstnode_dup, prev);
+                    prev = dstnode_dup;
                 }
-            } // there's a repetition
+            } // there's a dstnode_dupetition
         }
     }
 
@@ -1100,19 +1137,19 @@ void Tree::merge_with(Tree const *src, id_type src_node, id_type dst_node)
 
 //-----------------------------------------------------------------------------
 
-void Tree::resolve()
+void Tree::resolve(bool clear_anchors)
 {
     if(m_size == 0)
         return;
     ReferenceResolver rr;
-    resolve(&rr);
+    resolve(&rr, clear_anchors);
 }
 
-void Tree::resolve(ReferenceResolver *C4_RESTRICT rr)
+void Tree::resolve(ReferenceResolver *C4_RESTRICT rr, bool clear_anchors)
 {
     if(m_size == 0)
         return;
-    rr->resolve(this);
+    rr->resolve(this, clear_anchors);
 }
 
 
@@ -1153,7 +1190,6 @@ id_type Tree::child_pos(id_type node, id_type ch) const
 
 #if defined(__clang__)
 #   pragma clang diagnostic push
-#   pragma GCC diagnostic ignored "-Wnull-dereference"
 #elif defined(__GNUC__)
 #   pragma GCC diagnostic push
 #   if __GNUC__ >= 6
@@ -1222,6 +1258,19 @@ id_type Tree::depth_asc(id_type node) const
         node = parent(node);
     }
     return depth;
+}
+
+bool Tree::is_ancestor(id_type node, id_type ancestor) const
+{
+    _RYML_CB_ASSERT(m_callbacks, node != NONE);
+    id_type p = parent(node);
+    while(p != NONE)
+    {
+        if(p == ancestor)
+            return true;
+        p = parent(p);
+    }
+    return false;
 }
 
 
@@ -1299,6 +1348,37 @@ void Tree::to_stream(id_type node, type_bits more_flags)
 
 
 //-----------------------------------------------------------------------------
+
+void Tree::clear_style(id_type node, bool recurse)
+{
+    NodeData *C4_RESTRICT d = _p(node);
+    d->m_type.clear_style();
+    if(!recurse)
+        return;
+    for(id_type child = d->m_first_child; child != NONE; child = next_sibling(child))
+        clear_style(child, recurse);
+}
+
+void Tree::set_style_conditionally(id_type node,
+                                   NodeType type_mask,
+                                   NodeType rem_style_flags,
+                                   NodeType add_style_flags,
+                                   bool recurse)
+{
+    NodeData *C4_RESTRICT d = _p(node);
+    if((d->m_type & type_mask) == type_mask)
+    {
+        d->m_type &= ~(NodeType)rem_style_flags;
+        d->m_type |= (NodeType)add_style_flags;
+    }
+    if(!recurse)
+        return;
+    for(id_type child = d->m_first_child; child != NONE; child = next_sibling(child))
+        set_style_conditionally(child, type_mask, rem_style_flags, add_style_flags, recurse);
+}
+
+
+//-----------------------------------------------------------------------------
 id_type Tree::num_tag_directives() const
 {
     // this assumes we have a very small number of tag directives
@@ -1328,10 +1408,30 @@ id_type Tree::add_tag_directive(TagDirective const& td)
     return pos;
 }
 
+namespace {
+bool _create_tag_directive_from_str(csubstr directive_, TagDirective *td, Tree *tree)
+{
+    _RYML_CB_CHECK(tree->callbacks(), directive_.begins_with("%TAG "));
+    if(!td->create_from_str(directive_))
+    {
+        _RYML_CB_ERR(tree->callbacks(), "invalid tag directive");
+    }
+    td->next_node_id = tree->size();
+    if(!tree->empty())
+    {
+        const id_type prev = tree->size() - 1;
+        if(tree->is_root(prev) && tree->type(prev) != NOTYPE && !tree->is_stream(prev))
+            ++td->next_node_id;
+    }
+    _c4dbgpf("%TAG: handle={} prefix={} next_node={}", td->handle, td->prefix, td->next_node_id);
+    return true;
+}
+} // namespace
+
 bool Tree::add_tag_directive(csubstr directive_)
 {
     TagDirective td;
-    if(td.create_from_str(directive_, this))
+    if(_create_tag_directive_from_str(directive_, &td, this))
     {
         add_tag_directive(td);
         return true;
@@ -1466,7 +1566,7 @@ csubstr Tree::lookup_result::unresolved() const
     return path.sub(path_pos);
 }
 
-void Tree::_advance(lookup_result *r, size_t more) const
+void Tree::_advance(lookup_result *r, size_t more)
 {
     r->path_pos += more;
     if(r->path.sub(r->path_pos).begins_with('.'))
@@ -1760,7 +1860,123 @@ Tree::_lookup_path_token Tree::_next_token(lookup_result *r, _lookup_path_token 
 }
 
 
-} // namespace ryml
+} // namespace yml
+} // namespace c4
+
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+#include "c4/yml/event_handler_tree.hpp"
+#include "c4/yml/parse_engine.def.hpp"
+#include "c4/yml/parse.hpp"
+
+namespace c4 {
+namespace yml {
+
+Location Tree::location(Parser const& parser, id_type node) const
+{
+    // try hard to avoid getting the location from a null string.
+    Location loc;
+    if(_location_from_node(parser, node, &loc, 0))
+        return loc;
+    return parser.val_location(parser.source().str);
+}
+
+bool Tree::_location_from_node(Parser const& parser, id_type node, Location *C4_RESTRICT loc, id_type level) const
+{
+    if(has_key(node))
+    {
+        csubstr k = key(node);
+        if(C4_LIKELY(k.str != nullptr))
+        {
+            _RYML_CB_ASSERT(m_callbacks, k.is_sub(parser.source()));
+            _RYML_CB_ASSERT(m_callbacks, parser.source().is_super(k));
+            *loc = parser.val_location(k.str);
+            return true;
+        }
+    }
+
+    if(has_val(node))
+    {
+        csubstr v = val(node);
+        if(C4_LIKELY(v.str != nullptr))
+        {
+            _RYML_CB_ASSERT(m_callbacks, v.is_sub(parser.source()));
+            _RYML_CB_ASSERT(m_callbacks, parser.source().is_super(v));
+            *loc = parser.val_location(v.str);
+            return true;
+        }
+    }
+
+    if(is_container(node))
+    {
+        if(_location_from_cont(parser, node, loc))
+            return true;
+    }
+
+    if(type(node) != NOTYPE && level == 0)
+    {
+        // try the prev sibling
+        {
+            const id_type prev = prev_sibling(node);
+            if(prev != NONE)
+            {
+                if(_location_from_node(parser, prev, loc, level+1))
+                    return true;
+            }
+        }
+        // try the next sibling
+        {
+            const id_type next = next_sibling(node);
+            if(next != NONE)
+            {
+                if(_location_from_node(parser, next, loc, level+1))
+                    return true;
+            }
+        }
+        // try the parent
+        {
+            const id_type parent = this->parent(node);
+            if(parent != NONE)
+            {
+                if(_location_from_node(parser, parent, loc, level+1))
+                    return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool Tree::_location_from_cont(Parser const& parser, id_type node, Location *C4_RESTRICT loc) const
+{
+    _RYML_CB_ASSERT(m_callbacks, is_container(node));
+    if(!is_stream(node))
+    {
+        const char *node_start = _p(node)->m_val.scalar.str;  // this was stored in the container
+        if(has_children(node))
+        {
+            id_type child = first_child(node);
+            if(has_key(child))
+            {
+                // when a map starts, the container was set after the key
+                csubstr k = key(child);
+                if(k.str && node_start > k.str)
+                    node_start = k.str;
+            }
+        }
+        *loc = parser.val_location(node_start);
+        return true;
+    }
+    else // it's a stream
+    {
+        *loc = parser.val_location(parser.source().str); // just return the front of the buffer
+    }
+    return true;
+}
+
+} // namespace yml
 } // namespace c4
 
 

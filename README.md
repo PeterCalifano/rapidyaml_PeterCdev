@@ -4,11 +4,9 @@
 [![Documentation Status](https://readthedocs.org/projects/rapidyaml/badge/?version=latest)](https://rapidyaml.readthedocs.io/latest/?badge=latest)
 
 [![PyPI](https://img.shields.io/pypi/v/rapidyaml?color=g)](https://pypi.org/project/rapidyaml/)
-[![Gitter](https://badges.gitter.im/rapidyaml/community.svg)](https://gitter.im/rapidyaml/community)
 
-<!-- [![Coveralls](https://coveralls.io/repos/github/biojppm/rapidyaml/badge.svg?branch=master)](https://coveralls.io/github/biojppm/rapidyaml) -->
+[![Coveralls](https://coveralls.io/repos/github/biojppm/rapidyaml/badge.svg?branch=master)](https://coveralls.io/github/biojppm/rapidyaml)
 [![Codecov](https://codecov.io/gh/biojppm/rapidyaml/branch/master/graph/badge.svg?branch=master)](https://codecov.io/gh/biojppm/rapidyaml)
-
 
 Or ryml, for short. ryml is a C++ library to parse and emit YAML,
 and do it fast, on everything from x64 to bare-metal chips without
@@ -84,6 +82,7 @@ and [the roadmap](https://github.com/biojppm/rapidyaml/tree/master/ROADMAP.md).
 ------
 
 ## Table of contents
+* [License](#license)
 * [Is it rapid?](#is-it-rapid)
   * [Comparison with yaml-cpp](#comparison-with-yaml-cpp)
   * [Performance reading JSON](#performance-reading-json)
@@ -103,7 +102,11 @@ and [the roadmap](https://github.com/biojppm/rapidyaml/tree/master/ROADMAP.md).
   * [Test suite status](#test-suite-status)
 * [Known limitations](#known-limitations)
 * [Alternative libraries](#alternative-libraries)
-* [License](#license)
+
+------
+## License
+
+ryml is permissively licensed under the [MIT license](LICENSE.txt).
 
 
 ------
@@ -393,7 +396,7 @@ ja: 惑星（ガス）
 zh: 行星（气体）
 # UTF8 decoding only happens in double-quoted strings,
 # as per the YAML standard
-decode this: "\u263A \xE2\x98\xBA"
+decode this: "\u263A c\x61f\xE9"
 and this as well: "\u2705 \U0001D11E"
 not decoded: '\u263A \xE2\x98\xBA'
 neither this: '\u2705 \U0001D11E'
@@ -407,7 +410,8 @@ CHECK(langs["zh"].val() == "行星（气体）");
 // and \x \u \U codepoints are decoded, but only when they appear
 // inside double-quoted strings, as dictated by the YAML
 // standard:
-CHECK(langs["decode this"].val() == "☺ ☺");
+CHECK(langs["decode this"].val() == "A");
+CHECK(langs["decode this"].val() == "☺ café");
 CHECK(langs["and this as well"].val() == "✅ 𝄞");
 CHECK(langs["not decoded"].val() == "\\u263A \\xE2\\x98\\xBA");
 CHECK(langs["neither this"].val() == "\\u2705 \\U0001D11E");
@@ -432,6 +436,17 @@ CHECK(loc.col == 4u);
 
 ## Using ryml in your project
 
+Note that ryml uses submodules. Take care to use the `--recursive`
+flag when cloning the repo, to ensure ryml's submodules are checked
+out as well:
+```bash
+git clone --recursive https://github.com/biojppm/rapidyaml
+```
+If you omit `--recursive`, after cloning you will have to do `git
+submodule update --init --recursive` to ensure ryml's submodules are
+checked out.
+
+
 ### Single header file
 ryml is provided chiefly as a cmake library project, but it can also
 be used as a single header file, and there is a [tool to
@@ -442,20 +457,39 @@ you can also generate a customized file suiting your particular needs
 
 ```console
 [user@host rapidyaml]$ python3 tools/amalgamate.py -h
-usage: amalgamate.py [-h] [--c4core | --no-c4core] [--fastfloat | --no-fastfloat] [--stl | --no-stl] [output]
+usage: amalgamate.py [-h] [--c4core | --no-c4core] [--fastfloat | --no-fastfloat]
+                     [--stl | --no-stl]
+                     [-e {tree,testsuite,int,all,none} [{tree,testsuite,int,all,none} ...]]
+                     [output]
 
 positional arguments:
-  output          output file. defaults to stdout
+  output                output file. defaults to stdout
 
-optional arguments:
-  -h, --help      show this help message and exit
-  --c4core        amalgamate c4core together with ryml. this is the default.
-  --no-c4core     amalgamate c4core together with ryml. the default is --c4core.
-  --fastfloat     enable fastfloat library. this is the default.
-  --no-fastfloat  enable fastfloat library. the default is --fastfloat.
-  --stl           enable stl interop. this is the default.
-  --no-stl        enable stl interop. the default is --stl.
+options:
+  -h, --help            show this help message and exit
+  --c4core              amalgamate c4core together with ryml. this is the default.
+  --no-c4core           amalgamate c4core together with ryml. the default is
+                        --c4core.
+  --fastfloat           enable fastfloat library. this is the default.
+  --no-fastfloat        enable fastfloat library. the default is --fastfloat.
+  --stl                 enable stl interop. this is the default.
+  --no-stl              enable stl interop. the default is --stl.
+  -e, --events {tree,testsuite,int,all,none} [{tree,testsuite,int,all,none} ...]
+                        Specify which event handlers to include. Possible values
+                        are: 'tree': (the default) enable the normal ryml event
+                        handler to create the tree, and additionally the Tree, Node,
+                        parser and emitter utilities; if this is not enabled, none
+                        of these components will be included in the amalgamated
+                        file. 'testsuite': enable the (extra) YAML test suite event
+                        handler. 'int': enable the (extra) integer-based event
+                        handler. 'all': enable all event handlers. 'none': disable
+                        all event handlers. The default is tree.
 ```
+
+Note that you can select which event handlers are to be included in the
+amalgamated header. This is useful for example when using only the int
+event parsing (withou the ryml tree/node/parse/emit) for a programming
+language or special application.
 
 The amalgamated header file contains all the function declarations and
 definitions. To use it in the project, `#include` the header at will
@@ -491,14 +525,6 @@ installed either manually or through package managers.
 Currently [cmake](https://cmake.org/) is required to build ryml; we
 recommend a recent cmake version, at least 3.13.
 
-Note that ryml uses submodules. Take care to use the `--recursive` flag
-when cloning the repo, to ensure ryml's submodules are checked out as well:
-```bash
-git clone --recursive https://github.com/biojppm/rapidyaml
-```
-If you omit `--recursive`, after cloning you
-will have to do `git submodule update --init --recursive`
-to ensure ryml's submodules are checked out.
 
 ### Package managers
 
@@ -553,6 +579,8 @@ more about each sample:
 |:-------------------|--------------------------|:-------------|:-------------|
 | [`singleheader`](./samples/singleheader) | **yes**<br>ryml brought as a single header file,<br>not as a library | [`CMakeLists.txt`](./samples/singleheader/CMakeLists.txt) | [`run.sh`](./samples/singleheader/run.sh) |
 | [`singleheaderlib`](./samples/singleheaderlib) | **yes**<br>ryml brought as a library<br>but from the single header file | [`CMakeLists.txt`](./samples/singleheaderlib/CMakeLists.txt) | [`run_shared.sh` (shared library)](./samples/singleheaderlib/run_shared.sh)<br> [`run_static.sh` (static library)](./samples/singleheaderlib/run_static.sh) |
+| [`singleheader-ints`](./samples/singleheader-ints) | **yes**<br>ryml brought as a single header file,<br>not as a library | [`CMakeLists.txt`](./samples/singleheader-ints/CMakeLists.txt) | [`run.sh`](./samples/singleheader-ints/run.sh) |
+| [`singleheaderlib`](./samples/singleheaderlib-ints) | **yes**<br>ryml brought as a library<br>but from the single header file | [`CMakeLists.txt`](./samples/singleheaderlib-ints/CMakeLists.txt) | [`run_shared.sh` (shared library)](./samples/singleheaderlib-ints/run_shared.sh)<br> [`run_static.sh` (static library)](./samples/singleheaderlib-ints/run_static.sh) |
 | [`add_subdirectory`](./samples/add_subdirectory) | **yes**                      | [`CMakeLists.txt`](./samples/add_subdirectory/CMakeLists.txt) | [`run.sh`](./samples/add_subdirectory/run.sh) |
 | [`fetch_content`](./samples/fetch_content)      | **yes**                      | [`CMakeLists.txt`](./samples/fetch_content/CMakeLists.txt) | [`run.sh`](./samples/fetch_content/run.sh) |
 | [`find_package`](./samples/find_package)        | **no**<br>needs prior install or package  | [`CMakeLists.txt`](./samples/find_package/CMakeLists.txt) | [`run.sh`](./samples/find_package/run.sh) |
@@ -604,9 +632,31 @@ versions). You can find out how to achieve this by looking at the
 One of the aims of ryml is to provide an efficient YAML API for other
 languages. JavaScript is fully available, and there is already a
 cursory implementation for Python using only the low-level API. After
-ironing out the general approach, other languages are likely to
-follow (all of this is possible because we're using
-[SWIG](http://www.swig.org/), which makes it easy to do so).
+ironing out the general approach, other languages are likely to follow
+suit.
+
+
+### Event buffer int handler
+
+Recently we added an alternative parser event handler (not part of the
+library). This handler parses the YAML source into a linear buffer of
+integers, which contains events encoded as bitmasks, interleaved with
+strings encoded as an offset (from the beginning of the source buffer)
+and length.
+
+This handler is fully compliant (ie it can handle container keys,
+unlike the ryml C++ tree), and is also 2x to 3x faster to parse.
+
+This handler is meant to be used in other programming languages while
+also minimizing speed-killing inter-language calls, creating a full
+representation of the YAML tree that can be processed at once in the
+target programming language.
+
+You can find the int event handler in the [`src_extra` source
+folder](https://github.com/biojppm/rapidyaml/tree/master/src_extra). See
+its doxygen documentation for details on how to use it, and how to
+process the event array.
+
 
 ### JavaScript
 
@@ -615,72 +665,22 @@ A JavaScript+WebAssembly port is available, compiled through [emscripten](https:
 
 ### Python
 
-(Note that this is a work in progress. Additions will be made and things will
-be changed.) With that said, here's an example of the Python API:
+(Note that this is a work in progress. Additions will be made and
+things will be changed.). The python port is using only the
+index-based low-level API, which works with node indices and string
+views. This API is fast, but you may find it hard to use: it does not
+build a python structure of dicts/seqs/scalars, and all the scalars
+are strings, and not typed. With that said, it is really fast, and
+once you have the tree you can still walk over the tree to create the
+native python structure. Have a look at this [test
+file](api/python/tests/test_readme.py) to see how the python API
+works, and to judge whether it may be useful to your case.
 
-```python
-import ryml
-
-# ryml cannot accept strings because it does not take ownership of the
-# source buffer; only bytes or bytearrays are accepted.
-src = b"{HELLO: a, foo: b, bar: c, baz: d, seq: [0, 1, 2, 3]}"
-
-def check(tree):
-    # for now, only the index-based low-level API is implemented
-    assert tree.size() == 10
-    assert tree.root_id() == 0
-    assert tree.first_child(0) == 1
-    assert tree.next_sibling(1) == 2
-    assert tree.first_sibling(5) == 2
-    assert tree.last_sibling(1) == 5
-    # use bytes objects for queries
-    assert tree.find_child(0, b"foo") == 1
-    assert tree.key(1) == b"foo")
-    assert tree.val(1) == b"b")
-    assert tree.find_child(0, b"seq") == 5
-    assert tree.is_seq(5)
-    # to loop over children:
-    for i, ch in enumerate(ryml.children(tree, 5)):
-        assert tree.val(ch) == [b"0", b"1", b"2", b"3"][i]
-    # to loop over siblings:
-    for i, sib in enumerate(ryml.siblings(tree, 5)):
-        assert tree.key(sib) == [b"HELLO", b"foo", b"bar", b"baz", b"seq"][i]
-    # to walk over all elements
-    visited = [False] * tree.size()
-    for n, indentation_level in ryml.walk(tree):
-        # just a dumb emitter
-        left = "  " * indentation_level
-        if tree.is_keyval(n):
-           print("{}{}: {}".format(left, tree.key(n), tree.val(n))
-        elif tree.is_val(n):
-           print("- {}".format(left, tree.val(n))
-        elif tree.is_keyseq(n):
-           print("{}{}:".format(left, tree.key(n))
-        visited[inode] = True
-    assert False not in visited
-    # NOTE about encoding!
-    k = tree.get_key(5)
-    print(k)  # '<memory at 0x7f80d5b93f48>'
-    assert k == b"seq"               # ok, as expected
-    assert k != "seq"                # not ok - NOTE THIS! 
-    assert str(k) != "seq"           # not ok
-    assert str(k, "utf8") == "seq"   # ok again
-
-# parse immutable buffer
-tree = ryml.parse_in_arena(src)
-check(tree) # OK
-
-# parse mutable buffer.
-# requires bytearrays or objects offering writeable memory
-mutable = bytearray(src)
-tree = ryml.parse_in_place(mutable)
-check(tree) # OK
-```
-As expected, the performance results so far are encouraging. In
-a [timeit benchmark](api/python/parse_bm.py) compared
-against [PyYaml](https://pyyaml.org/)
-and [ruamel.yaml](https://yaml.readthedocs.io/en/latest/), ryml parses
+As for performance, in a [timeit benchmark](api/python/bm/parse_bm.py)
+compared against [PyYaml](https://pyyaml.org/) and
+[ruamel.yaml](https://yaml.readthedocs.io/en/latest/), ryml parses
 quicker by generally 100x and up to 400x:
+
 ```
 +----------------------------------------+-------+----------+----------+-----------+
 | style_seqs_blck_outer1000_inner100.yml | count | time(ms) | avg(ms)  | avg(MB/s) |
@@ -735,7 +735,7 @@ following situations:
 * ryml's tree does NOT accept containers as map keys: keys stored in
   the tree must always be scalars. HOWEVER, this is a limitation only
   of the final tree. The event-based parse engine DOES parse container
-  keys, as it is is meant to be used by other programming languages to
+  keys, as it is meant to be used by other programming languages to
   create their native data-structures, and it is fully tested and
   fully conformant (other than the general error permissiveness noted
   below).
@@ -762,6 +762,11 @@ following situations:
   reflects the usual practice of having at most 1 or 2 tag directives;
   also, be aware that this feature is under consideration for removal
   in YAML 1.3.
+* Byte Order Marks: while ryml correctly handles BOMs at the beginning
+  of the stream or documents (as per the standard), BOMs inside
+  scalars are ignored. The [standard mandates that they should be
+  quoted](https://yaml.org/spec/1.2.2/#52-character-encodings) when
+  emitted; this is not done.
 * ryml tends to be on the permissive side in several cases where the
   YAML standard dictates that there should be an error; in many of these
   cases, ryml will tolerate the input. This may be good or bad, but in
@@ -871,9 +876,4 @@ compromise, bridges the gap from efficiency to usability. This library
 takes inspiration from
 [RapidJSON](https://github.com/Tencent/rapidjson) and
 [RapidXML](http://rapidxml.sourceforge.net/).
-
-------
-## License
-
-ryml is permissively licensed under the [MIT license](LICENSE.txt).
  

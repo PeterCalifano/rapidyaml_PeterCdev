@@ -5,11 +5,15 @@
 
 #include <cstddef>
 #include <c4/substr.hpp>
+#include <c4/charconv.hpp>
 #include <c4/dump.hpp>
 #include <c4/yml/export.hpp>
 
 #if defined(C4_MSVC) || defined(C4_MINGW)
 #include <malloc.h>
+#elif (defined(__clang__) && defined(_MSC_VER)) || \
+      defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#include <stdlib.h>
 #else
 #include <alloca.h>
 #endif
@@ -287,7 +291,8 @@ struct RYML_EXPORT LineCol
     //! construct from offset, line and column
     LineCol(size_t o, size_t l, size_t c) : offset(o), line(l), col(c) {}
 };
-static_assert(std::is_trivial<LineCol>::value, "LineCol not trivial");
+static_assert(std::is_trivially_copyable<LineCol>::value, "LineCol not trivially copyable");
+static_assert(std::is_trivially_default_constructible<LineCol>::value, "LineCol not trivially default constructible");
 static_assert(std::is_standard_layout<LineCol>::value, "Location not trivial");
 
 
@@ -304,7 +309,7 @@ struct RYML_EXPORT Location
     csubstr name;
 
     operator bool () const { return !name.empty() || line != 0 || offset != 0 || col != 0; }
-    operator LineCol const& () const { return reinterpret_cast<LineCol const&>(*this); }
+    operator LineCol const& () const { return reinterpret_cast<LineCol const&>(*this); } // NOLINT
 
     Location() = default;
     Location(                         size_t l, size_t c) : offset( ), line(l), col(c), name( ) {}
@@ -381,7 +386,7 @@ struct RYML_EXPORT Callbacks
     /** Construct an object with the default callbacks. If
      * @ref RYML_NO_DEFAULT_CALLBACKS is defined, the object will have null
      * members.*/
-    Callbacks();
+    Callbacks() noexcept;
 
     /** Construct an object with the given callbacks.
      *
@@ -417,6 +422,20 @@ struct RYML_EXPORT Callbacks
 
 
 /** @} */
+
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+typedef enum {
+    NOBOM,
+    UTF8,
+    UTF16LE,
+    UTF16BE,
+    UTF32LE,
+    UTF32BE,
+} Encoding_e;
 
 
 //-----------------------------------------------------------------------------
@@ -476,7 +495,6 @@ do                                                                      \
     } while(0)
 
 
-
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -499,7 +517,7 @@ struct FilterResult
 {
     C4_ALWAYS_INLINE bool valid() const noexcept { return str.str != nullptr; }
     C4_ALWAYS_INLINE size_t required_len() const noexcept { return str.len; }
-    C4_ALWAYS_INLINE csubstr get() { RYML_ASSERT(valid()); return str; }
+    C4_ALWAYS_INLINE csubstr get() const { RYML_ASSERT(valid()); return str; }
     csubstr str;
 };
 /** Abstracts the fact that a scalar filter result may not fit in the
@@ -508,7 +526,7 @@ struct FilterResultExtending
 {
     C4_ALWAYS_INLINE bool valid() const noexcept { return str.str != nullptr; }
     C4_ALWAYS_INLINE size_t required_len() const noexcept { return reqlen; }
-    C4_ALWAYS_INLINE csubstr get() { RYML_ASSERT(valid()); return str; }
+    C4_ALWAYS_INLINE csubstr get() const { RYML_ASSERT(valid()); return str; }
     csubstr str;
     size_t reqlen;
 };
@@ -524,7 +542,7 @@ namespace detail {
 template<int8_t signedval, uint8_t unsignedval>
 struct _charconstant_t
     : public std::conditional<std::is_signed<char>::value,
-                              std::integral_constant<int8_t, signedval>,
+                              std::integral_constant<int8_t, static_cast<int8_t>(unsignedval)>,
                               std::integral_constant<uint8_t, unsignedval>>::type
 {};
 #define _RYML_CHCONST(signedval, unsignedval) ::c4::yml::detail::_charconstant_t<INT8_C(signedval), UINT8_C(unsignedval)>::value
@@ -567,7 +585,7 @@ struct _SubstrWriter
     //! get the part written so far
     csubstr curr() const { return pos <= buf.len ? buf.first(pos) : buf; }
     //! get the part that is still free to write to (the remainder)
-    substr rem() { return pos < buf.len ? buf.sub(pos) : buf.last(0); }
+    substr rem() const { return pos < buf.len ? buf.sub(pos) : buf.last(0); }
 
     size_t advance(size_t more) { pos += more; return pos; }
 };

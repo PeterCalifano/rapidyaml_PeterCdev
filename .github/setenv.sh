@@ -36,6 +36,7 @@ function c4_show_info()
     echo "ARM=$ARM"
     echo "LIBCXX=$LIBCXX"
     echo "VERBOSE_MAKEFILES=$VERBOSE_MAKEFILES"
+    echo "RUNNER_OS=$RUNNER_OS"
     which cmake
     cmake --version
     case "$CXX_" in
@@ -103,14 +104,28 @@ function _c4skipbitlink()
     return 0  # return nonzero as success, meaning DO SKIP
 }
 
+function _c4getnumcores()
+{
+    if [ "$RUNNER_OS" == "macOS" ] || [ "$CXX_" == "xcode" ] ; then
+        # https://gist.github.com/nlutsenko/ee245fbd239087d22137
+        sysctl -n hw.ncpu
+    elif [ "$RUNNER_OS" == "Linux" ] || [ "$CXX_" == gcc* ] || [ "$CXX_" == g++* ] || [ "$CXX_" == *clang* ] ; then
+        nproc
+    else
+        # https://gist.github.com/nlutsenko/ee245fbd239087d22137
+        echo $NUMBER_OF_PROCESSORS
+    fi
+}
+
 function c4_build_test()
 {
-    c4_build_target $* test-build
+    c4_build_target $* ryml-test-build
 }
 
 function c4_run_test()
 {
-    c4_run_target $* test
+    export CTEST_PARALLEL_LEVEL=`_c4getnumcores`
+    c4_run_target $* ryml-test-run
 }
 
 function c4_build_target()  # runs in parallel
